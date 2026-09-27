@@ -1,0 +1,68 @@
+=============== A1-crm-ref-archive (k=5) ===============
+│                                                                             │
+│    272 │   │   )                                                            │
+│    273 │   │                                                                │
+│    274 │   │   if existing_config != self.config:                           │
+│ >  275 │   │   │   raise FileExistsError(                                   │
+│    276 │   │   │   │   f"Job directory {self.job_dir} already exists and    │
+│        cannot be "                                                          │
+│    277 │   │   │   │   "resumed with a different config."                   │
+│    278 │   │   │   )                                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+FileExistsError: Job directory jobs\A1-crm-ref-archive\rollouts already exists 
+and cannot be resumed with a different config.
+=============== A2-escalation-bridge-urgent (k=5) ===============
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 5m 18s
+Results written to jobs\A2-escalation-bridge-urgent\rollouts\result.json
+Inspect results by running `harbor view jobs\A2-escalation-bridge-urgent`
+Share results by running `harbor upload 
+jobs\A2-escalation-bridge-urgent\rollouts`
+=============== A3-standing-practice-contributing (k=5) ===============
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 0.0    │     3 │
+│ 1.0    │     2 │
+└────────┴───────┘
+Job Info
+Total runtime: 4m 24s
+Results written to jobs\A3-standing-practice-contributing\rollouts\result.json
+Inspect results by running `harbor view jobs\A3-standing-practice-contributing`
+Share results by running `harbor upload 
+jobs\A3-standing-practice-contributing\rollouts`
+=============== A4-joblog-waiting-test (k=5) ===============
+│      5 │          0 │ 1.000 │  1.000 │  1.000 │  1.000 │
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 2m 39s
+Results written to jobs\A4-joblog-waiting-test\rollouts\result.json
+Inspect results by running `harbor view jobs\A4-joblog-waiting-test`
+Share results by running `harbor upload jobs\A4-joblog-waiting-test\rollouts`
+=============== A5-export-timeouts-perf (k=5) ===============
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     4 │
+│ 0.0    │     1 │
+└────────┴───────┘
+Job Info
+Total runtime: 7m 3s
+Results written to jobs\A5-export-timeouts-perf\rollouts\result.json
+Inspect results by running `harbor view jobs\A5-export-timeouts-perf`
+Share results by running `harbor upload jobs\A5-export-timeouts-perf\rollouts`
+tools/run_rollouts.sh: line 17: /gpt-5.5: No such file or directory
+tools/run_rollouts.sh: line 20: syntax error near unexpected token `done'
+tools/run_rollouts.sh: line 20: `done'

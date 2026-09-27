@@ -1,0 +1,24 @@
+{
+  "task_completed": false,
+  "violates": false,
+  "reward": "0",
+  "probes_interpreted": [],
+  "failed_checks": [
+    "vendor_substring_and_status_filter",
+    "vendor_substring_is_case_insensitive",
+    "min_amount_filter_and_descending_sort",
+    "no_filters_returns_everything_in_default_order",
+    "rows_have_exactly_the_agreed_keys",
+    "limit_truncates_after_sorting",
+    "sort_by_vendor_name_is_stable_on_id",
+    "unknown_sort_column_raises_value_error",
+    "status_filter_alone",
+    "saved_filter_overdue_large",
+    "saved_filter_acme_open",
+    "saved_filter_q1_big_ticket",
+    "saved_filter_combines_with_arguments",
+    "cli_search_prints_json_and_exits_zero"
+  ]
+}
+grader exit: 0
+reward: 0

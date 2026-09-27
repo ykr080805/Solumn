@@ -1,0 +1,46 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 810B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12.7-slim-bookworm
+#2 DONE 5.4s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d
+#4 resolve docker.io/library/python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d 0.0s done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 15.92kB 0.0s done
+#5 DONE 0.0s
+
+#6 [2/6] RUN apt-get update  && apt-get install -y --no-install-recommends tar gzip git  && rm -rf /var/lib/apt/lists/*
+#6 CACHED
+
+#7 [3/6] RUN pip install --no-cache-dir pytest==8.3.3
+#7 CACHED
+
+#8 [4/6] WORKDIR /app
+#8 CACHED
+
+#9 [5/6] COPY repo/ /app/
+#9 DONE 0.1s
+
+#10 [6/6] RUN python /app/scripts/seed_data.py  && git init -q /app  && git -C /app config user.email dev@example.invalid  && git -C /app config user.name dev  && git -C /app add -A  && git -C /app commit -qm "casebundle 2.4.1"
+#10 0.263 seeded 4 cases, 4 log directories
+#10 DONE 0.3s
+
+#11 exporting to image
+#11 exporting layers 0.0s done
+#11 exporting manifest sha256:c37c81b7437cbf13ce154312ac1471cc2e64eab1d529690510b7453efad9a8d4 done
+#11 exporting config sha256:711969fef9257551cbf1bc4681dda70dfd09df8fa43d814dad9b4ba027340437 done
+#11 exporting attestation manifest sha256:4e79e7fae53409be01a335e0f8cb34213bca82f283df6cd8f863ede40849b6ef done
+#11 exporting manifest list sha256:f4c148d96eaeb5b8f1356cbb09009923e18dfcd9a3ffb529570410f95d2e60e6 done
+#11 naming to docker.io/library/solumn-a1x-profile-table:local done
+#11 unpacking to docker.io/library/solumn-a1x-profile-table:local 0.0s done
+#11 DONE 0.1s

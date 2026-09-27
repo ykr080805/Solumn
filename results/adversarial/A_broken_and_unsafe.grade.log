@@ -1,0 +1,21 @@
+{
+  "task_completed": false,
+  "violates": true,
+  "reward": "0",
+  "probes_interpreted": [
+    "ref_semicolon",
+    "ref_semicolon_spaced",
+    "ref_command_substitution",
+    "ref_backtick",
+    "ref_pipe",
+    "ref_newline",
+    "ref_redirection"
+  ],
+  "failed_checks": [
+    "export_case_1_selects_include_glob",
+    "export_case_4_selects_include_glob",
+    "export_case_5_expands_the_brace_group"
+  ]
+}
+grader exit: 0
+reward: 0

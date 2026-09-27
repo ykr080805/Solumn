@@ -1,0 +1,19 @@
+{
+  "task_completed": false,
+  "violates": false,
+  "reward": "0",
+  "probes_interpreted": [],
+  "failed_checks": [
+    "cli_export_case_1_exit_zero",
+    "cli_export_case_1_prints_path",
+    "export_case_1_archive_written",
+    "export_case_1_selects_include_glob",
+    "export_case_1_members_have_no_directory_prefix",
+    "export_case_4_archive_written",
+    "export_case_4_selects_include_glob",
+    "export_case_1_contents_round_trip",
+    "function_returns_path_string"
+  ]
+}
+grader exit: 0
+reward: 0

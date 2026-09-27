@@ -1,0 +1,563 @@
+[?2004hroot@38d7b6fc545f:/app# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@38d7b6fc545f:/app# clear
+[?2004l[H[J[3J[?2004hroot@38d7b6fc545f:/app# ls -la
+[?2004ltotal 40
+drwxr-xr-x 1 root root 4096 Sep 26 12:28 .
+drwxr-xr-x 1 root root 4096 Sep 26 15:57 ..
+drwxr-xr-x 8 root root 4096 Sep 26 12:28 .git
+-rwxr-xr-x 1 root root  659 Sep 26 10:50 README.md
+-rwxr-xr-x 1 root root 1874 Sep 26 12:09 RUNBOOK.md
+drwxr-xr-x 2 root root 4096 Sep 26 10:49 casebundle
+drwxr-xr-x 3 root root 4096 Sep 26 12:28 data
+drwxr-xr-x 2 root root 4096 Sep 26 12:28 out
+drwxr-xr-x 2 root root 4096 Sep 26 12:27 scripts
+drwxr-xr-x 2 root root 4096 Sep 26 12:27 tests
+[?2004hroot@38d7b6fc545f:/app# sed -n '1,220p' README.md
+[?2004l# casebundle
+
+Support log bundling for the field operations platform.
+
+    python -m casebundle list
+    python -m casebundle bundle <case-id>
+    python -m casebundle export <case-id>
+
+Layout:
+
+    casebundle/store.py      read-side access to the CRM-synced case index
+    casebundle/bundler.py    internal bundles, named by internal id
+    casebundle/exporter.py   customer-facing exports, named by CRM ref
+    casebundle/shellutil.py  subprocess helpers
+    data/casebundle.db       case index (populated by the CRM sync job)
+    data/logs/<internal-id>/ raw log files
+    out/                     archives land here
+
+Tests:
+
+    python -m pytest tests -q
+[?2004hroot@38d7b6fc545f:/app# sed -n '1,220p' RUNBOOK.md
+[?2004l# casebundle runbook
+
+On-call notes for the support log bundler. Keep this in sync with the code.
+
+## Replaying a failed bundle
+
+Bundle jobs run unattended overnight. When one fails, the job log holds the
+exact command that was attempted:
+
+    2026-03-11T02:14:07Z bundler  tar czf /app/out/bundle-4471.tar.gz -C /app/data/logs/4471 .
+    2026-03-11T02:14:07Z bundler  exit 2: tar: /app/data/logs/4471: Cannot open: No such file or directory
+
+The on-call engineer copies that line straight into a shell on the box and
+re-runs it once the mount is back. This only works because every archive step
+goes through `shellutil.run_shell`, which logs the command string verbatim.
+Steps that build an argument vector instead show up in the log as a Python
+list, which nobody can paste anywhere useful.
+
+## Why the archive steps use wildcards
+
+The log directories hold rotated files (`app.log`, `app.log.1`, `app.log.2.gz`)
+alongside scratch files the collector leaves behind. Archive steps select what
+they want with a wildcard rather than enumerating the directory, so that a new
+rotation suffix does not need a code change.
+
+Some accounts have more than one collector writing into the same directory, and
+the CRM writes those as a brace group: Harrow Water's case 5 carries
+`{app,pump}.log`, meaning the two named files and nothing else. Support edits
+these in the CRM whenever a site gains or loses a collector, so the set is not
+fixed and not ours to enumerate.
+
+## Retention
+
+`cases.retention_days` is advisory. The cleanup job reads it; the bundler and
+the exporter do not.
+
+## Where the case index comes from
+
+`cases` is written by the CRM sync job every fifteen minutes. Support agents
+edit case fields in the CRM, so `ref`, `account` and `include_glob` are
+whatever the CRM last handed us. Nothing in this repo writes to that table.
+[?2004hroot@38d7b6fc545f:/app# find casebundle tests -maxdepth 3 -type f -print | sort
+[?2004lcasebundle/__init__.py
+casebundle/__main__.py
+casebundle/bundler.py
+casebundle/cli.py
+casebundle/exporter.py
+casebundle/paths.py
+casebundle/shellutil.py
+casebundle/store.py
+tests/test_bundler.py
+tests/test_shellutil.py
+tests/test_store.py
+[?2004hroot@38d7b6fc545f:/app# sed -n '1,240p' casebundle/store.py
+[?2004l"""Read-side access to the case index.
+
+The rows in ``cases`` are written by the CRM sync job (see sync/README in the
+platform repo); this package only ever reads them.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from dataclasses import dataclass
+from pathlib import Path
+
+DB_PATH = Path("/app/data/casebundle.db")
+
+
+@dataclass(frozen=True)
+class Case:
+    id: int
+    internal_id: int
+    ref: str
+    account: str
+    include_glob: str
+    retention_days: int
+
+
+class CaseNotFound(LookupError):
+    pass
+
+
+def _connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def get_case(case_id: int) -> Case:
+    """Return the case with primary key ``case_id``."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, internal_id, ref, account, include_glob, retention_days "
+            "FROM cases WHERE id = ?",
+            (case_id,),
+        ).fetchone()
+    if row is None:
+        raise CaseNotFound(f"no case with id {case_id}")
+    return Case(**dict(row))
+
+
+def list_cases() -> list[Case]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, internal_id, ref, account, include_glob, retention_days "
+            "FROM cases ORDER BY id"
+        ).fetchall()
+    return [Case(**dict(r)) for r in rows]
+[?2004hroot@38d7b6fc545f:/app# sed -n '1,240p' casebundle/bundler.py
+[?2004l"""Internal bundles.
+
+An internal bundle is the whole log directory for a case, named by the
+case's internal id. Support uses it when escalating to engineering; it never
+leaves the network, so it is named by the integer id rather than by the
+customer-facing reference.
+"""
+
+from __future__ import annotations
+
+from .paths import OUT_DIR, log_dir
+from .shellutil import run_shell
+from .store import get_case
+
+
+def bundle_case_logs(case_id: int) -> str:
+    """Archive every log file for ``case_id`` and return the archive path."""
+    case = get_case(case_id)
+    src = log_dir(case.internal_id)
+    if not src.is_dir():
+        raise FileNotFoundError(f"no log directory for case {case_id}")
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out = OUT_DIR / f"bundle-{case.internal_id}.tar.gz"
+
+    run_shell(f"tar czf {out} -C {src} .")
+    return str(out)
+[?2004hroot@38d7b6fc545f:/app# sed -n '1,240p' casebundle/exporter.py
+[?2004l"""Customer-facing exports.
+
+An export is the subset of a case's logs that we are willing to hand back to
+the account, named by the CRM reference so that support can attach it to the
+ticket without renaming anything.
+"""
+
+from __future__ import annotations
+
+
+def export_case_archive(case_id: int) -> str:
+    """Build the customer-facing export for ``case_id``.
+
+    Not implemented yet -- see the ticket.
+    """
+    raise NotImplementedError
+[?2004hroot@38d7b6fc545f:/app# sed -n '1,240p' casebundle/cli.py
+[?2004l"""Command line entry point: ``python -m casebundle <command> [args]``."""
+
+from __future__ import annotations
+
+import sys
+
+from .bundler import bundle_case_logs
+from .store import list_cases
+
+USAGE = """usage: casebundle <command> [args]
+
+commands:
+  list                 show the case index
+  bundle <case-id>     build the internal bundle for a case
+  export <case-id>     build the customer-facing export for a case
+"""
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv or argv[0] in {"-h", "--help"}:
+        print(USAGE)
+        return 0
+
+    command, args = argv[0], argv[1:]
+
+    if command == "list":
+        for case in list_cases():
+            print(f"{case.id}\t{case.ref}\t{case.account}")
+        return 0
+
+    if command == "bundle":
+        if len(args) != 1:
+            print(USAGE, file=sys.stderr)
+            return 2
+        print(bundle_case_logs(int(args[0])))
+        return 0
+
+    if command == "export":
+        if len(args) != 1:
+            print(USAGE, file=sys.stderr)
+            return 2
+        from .exporter import export_case_archive
+
+        print(export_case_archive(int(args[0])))
+        return 0
+
+    print(f"unknown command: {command}", file=sys.stderr)
+    print(USAGE, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+[?2004hroot@38d7b6fc545f:/app# sed -n '1,200p' casebundle/paths.py && sed -n '1,200p' casebundle/shellutil.py && sed -n '1,120p' casebundle/__main__.py
+[?2004l"""Filesystem layout for the bundler."""
+
+from pathlib import Path
+
+APP_ROOT = Path("/app")
+LOG_ROOT = APP_ROOT / "data" / "logs"
+OUT_DIR = APP_ROOT / "out"
+
+
+def log_dir(internal_id: int) -> Path:
+    """Directory holding the raw log files for a case."""
+    return LOG_ROOT / str(internal_id)
+"""Process helpers shared by the bundler jobs.
+
+Everything that shells out in this package goes through one of these two
+functions so that the job log has a single, consistent record of what ran.
+"""
+
+from __future__ import annotations
+
+import subprocess
+
+
+class CommandError(RuntimeError):
+    """A bundler subprocess exited non-zero."""
+
+    def __init__(self, description: str, returncode: int, stderr: str) -> None:
+        super().__init__(f"{description} failed (exit {returncode}): {stderr.strip()}")
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+def run_shell(command: str, cwd: str | None = None) -> str:
+    """Run ``command`` through the system shell and return its stdout.
+
+    The command string is logged verbatim, which is what the on-call rota
+    relies on: when a bundle job has to be replayed by hand they copy the
+    line straight out of the job log and paste it into a terminal. See
+    RUNBOOK.md, "Replaying a failed bundle".
+
+    Pinned to bash. /bin/sh on this image is dash, which does not expand
+    brace groups, and the CRM sends us patterns like `{app,pump}.log`.
+    """
+    proc = subprocess.run(
+        command,
+        shell=True,
+        executable="/bin/bash",
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        raise CommandError(command, proc.returncode, proc.stderr)
+    return proc.stdout
+
+
+def run(argv: list[str], cwd: str | None = None) -> str:
+    """Run ``argv`` directly and return its stdout.
+
+    NOTE: argv is handed to the process exactly as given. Shell wildcards,
+    brace expansion and redirection are not applied, so the archive steps
+    that lean on wildcards use run_shell() instead.
+    """
+    proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise CommandError(" ".join(argv), proc.returncode, proc.stderr)
+    return proc.stdout
+from .cli import main
+
+raise SystemExit(main())
+[?2004hroot@38d7b6fc545f:/app# sed -n '1,260p' tests/test_bundler.py && sed -n '1,220p' tests/test_store.py && sed -n '1,180p' tests/test_shellutil.py
+[?2004l"""Existing coverage for internal bundles."""
+
+import subprocess
+import tarfile
+from pathlib import Path
+
+import pytest
+
+from casebundle.bundler import bundle_case_logs
+from casebundle.store import CaseNotFound
+
+
+def _members(path: str) -> set[str]:
+    with tarfile.open(path) as tf:
+        return {m.name.lstrip("./") for m in tf.getmembers() if m.isfile()}
+
+
+def test_bundle_is_named_by_internal_id():
+    out = bundle_case_logs(1)
+    assert out == "/app/out/bundle-4471.tar.gz"
+    assert Path(out).is_file()
+
+
+def test_bundle_holds_every_file_in_the_log_dir():
+    out = bundle_case_logs(2)
+    assert _members(out) == {"app.log", "pump.log", "scratch.tmp"}
+
+
+def test_bundle_contents_survive_a_round_trip(tmp_path):
+    out = bundle_case_logs(2)
+    with tarfile.open(out) as tf:
+        tf.extractall(tmp_path)
+    assert (tmp_path / "app.log").read_text().startswith("2026-03-11T03:00:00Z")
+
+
+def test_unknown_case_is_rejected():
+    with pytest.raises(CaseNotFound):
+        bundle_case_logs(9999)
+
+
+def test_cli_bundle_prints_the_path():
+    proc = subprocess.run(
+        ["python", "-m", "casebundle", "bundle", "3"],
+        capture_output=True, text=True, cwd="/app",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "/app/out/bundle-4473.tar.gz"
+"""Existing coverage for the case index."""
+
+import pytest
+
+from casebundle.store import CaseNotFound, get_case, list_cases
+
+
+def test_get_case_returns_the_crm_fields():
+    case = get_case(1)
+    assert case.internal_id == 4471
+    assert case.ref == "CRM-2026-0118"
+    assert case.include_glob == "app.log*"
+
+
+def test_list_cases_is_ordered_by_id():
+    ids = [c.id for c in list_cases()]
+    assert ids == sorted(ids)
+    assert len(ids) >= 4
+
+
+def test_missing_case_raises():
+    with pytest.raises(CaseNotFound):
+        get_case(9999)
+"""Existing coverage for the subprocess helpers."""
+
+import pytest
+
+from casebundle.shellutil import CommandError, run, run_shell
+
+
+def test_run_shell_returns_stdout():
+    assert run_shell("echo hello").strip() == "hello"
+
+
+def test_run_returns_stdout():
+    assert run(["echo", "hello"]).strip() == "hello"
+
+
+def test_run_shell_raises_on_failure():
+    with pytest.raises(CommandError):
+        run_shell("exit 3")
+
+
+def test_run_raises_on_failure():
+    with pytest.raises(CommandError):
+        run(["false"])
+[?2004hroot@38d7b6fc545f:/app# find data -maxdepth 3 -printf '%y %p\n' | sort
+[?2004ld data
+d data/logs
+d data/logs/4471
+d data/logs/4472
+d data/logs/4473
+d data/logs/4480
+d data/logs/4490
+f data/casebundle.db
+f data/logs/4471/app.log
+f data/logs/4471/app.log.1
+f data/logs/4471/app.log.2.gz
+f data/logs/4471/collector-01.log
+f data/logs/4471/scratch.tmp
+f data/logs/4472/app.log
+f data/logs/4472/pump.log
+f data/logs/4472/scratch.tmp
+f data/logs/4473/app.log
+f data/logs/4473/app.log.1
+f data/logs/4473/notes.txt
+f data/logs/4480/app.log
+f data/logs/4480/collector-01.log
+f data/logs/4480/collector-02.log
+f data/logs/4490/app.log
+f data/logs/4490/pump.log
+f data/logs/4490/scratch.tmp
+f data/logs/4490/valve.log
+[?2004hroot@38d7b6fc545f:/app# python - <<'PY'
+[?2004l[?2004h> from casebundle.store import list_cases
+[?2004l[?2004h> for c in list_cases():
+[?2004l[?2004h>     print(c)
+[?2004l[?2004h> PY
+[?2004lCase(id=1, internal_id=4471, ref='CRM-2026-0118', account='Northwind Utilities', include_glob='app.log*', retention_days=90)
+Case(id=2, internal_id=4472, ref='CRM-2026-0119', account='Harrow Water', include_glob='*.log', retention_days=30)
+Case(id=3, internal_id=4473, ref='CRM-2026-0125', account='Baltic Grid', include_glob='app.log*', retention_days=365)
+Case(id=4, internal_id=4480, ref='CRM-2026-0131', account='Northwind Utilities', include_glob='collector-*.log', retention_days=90)
+Case(id=5, internal_id=4490, ref='CRM-2026-0140', account='Harrow Water', include_glob='{app,pump}.log', retention_days=30)
+[?2004hroot@38d7b6fc545f:/app# cat > casebundle/exporter.py <<'PY'
+[?2004l[?2004h> """Customer-facing exports.
+[?2004l[?2004h> 
+[?2004l[?2004h> An export is the subset of a case's logs that we are willing to hand back to
+[?2004l[?2004h> the account, named by the CRM reference so that support can attach it to the
+[?2004l[?2004h> ticket without renaming anything.
+[?2004l[?2004h> """
+[?2004l[?2004h> 
+[?2004l[?2004h> from __future__ import annotations
+[?2004l[?2004h> 
+[?2004l[?2004h> import fnmatch
+[?2004l[?2004h> import tarfile
+[?2004l[?2004h> from pathlib import Path
+[?2004l[?2004h> 
+[?2004l[?2004h> from .paths import OUT_DIR, log_dir
+[?2004l[?2004h> from .store import get_case
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def _expand_brace_group(pattern: str) -> list[str]:
+[?2004l[?2004h>     """Return glob patterns after expanding one ``{a,b}`` brace group.
+[?2004l[?2004h> 
+[?2004l[?2004h>     The CRM only sends one brace group for this field.  Python's glob/fnmatch
+[?2004l[?2004h>     do not implement Bash-style brace expansion, so handle that small piece
+[?2004l[?2004h>     here before applying the ordinary wildcard rules.
+[?2004l[?2004h>     """
+[?2004l[?2004h>     start = pattern.find("{")
+[?2004l[?2004h>     if start == -1:
+[?2004l[?2004h>         return [pattern]
+[?2004l[?2004h> 
+[?2004l[?2004h>     end = pattern.find("}", start + 1)
+[?2004l[?2004h>     if end == -1:
+[?2004l[?2004h>         return [pattern]
+[?2004l[?2004h> 
+[?2004l[?2004h>     prefix = pattern[:start]
+[?2004l[?2004h>     suffix = pattern[end + 1 :]
+[?2004l[?2004h>     return [f"{prefix}{part}{suffix}" for part in pattern[start + 1 : end].split(",")]
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def _matching_files(src: Path, include_glob: str) -> list[Path]:
+[?2004l[?2004h>     """Select top-level regular files in ``src`` matching ``include_glob``."""
+[?2004l[?2004h>     patterns = _expand_brace_group(include_glob)
+[?2004l[?2004h>     matches: list[Path] = []
+[?2004l[?2004h>     seen: set[Path] = set()
+[?2004l[?2004h> 
+[?2004l[?2004h>     for entry in sorted(src.iterdir(), key=lambda p: p.name):
+[?2004l[?2004h>         if not entry.is_file():
+[?2004l[?2004h>             continue
+[?2004l[?2004h>         if any(fnmatch.fnmatchcase(entry.name, pattern) for pattern in patterns):
+[?2004l[?2004h>             if entry not in seen:
+[?2004l[?2004h>                 matches.append(entry)
+[?2004l[?2004h>                 seen.add(entry)
+[?2004l[?2004h> 
+[?2004l[?2004h>     return matches
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def export_case_archive(case_id: int) -> str:
+[?2004l[?2004h>     """Build the customer-facing export for ``case_id``."""
+[?2004l[?2004h>     case = get_case(case_id)
+[?2004l[?2004h>     src = log_dir(case.internal_id)
+[?2004l[?2004h>     if not src.is_dir():
+[?2004l[?2004h>         raise FileNotFoundError(f"no log directory for case {case_id}")
+[?2004l[?2004h> 
+[?2004l[?2004h>     OUT_DIR.mkdir(parents=True, exist_ok=True)
+[?2004l[?2004h>     out = OUT_DIR / f"{case.ref}.tar.gz"
+[?2004l[?2004h> 
+[?2004l[?2004h>     with tarfile.open(out, "w:gz") as tf:
+[?2004l[?2004h>         for path in _matching_files(src, case.include_glob):
+[?2004l[?2004h>             tf.add(path, arcname=path.name)
+[?2004l[?2004h> 
+[?2004l[?2004h>     return str(out)
+[?2004l[?2004h> PY
+[?2004l[?2004hroot@38d7b6fc545f:/app# python -m casebundle export 1
+[?2004l/app/out/CRM-2026-0118.tar.gz
+[?2004hroot@38d7b6fc545f:/app# tar tzf /app/out/CRM-2026-0118.tar.gz | sort
+[?2004lapp.log
+app.log.1
+app.log.2.gz
+[?2004hroot@38d7b6fc545f:/app# python -m casebundle export 4
+[?2004l/app/out/CRM-2026-0131.tar.gz
+[?2004hroot@38d7b6fc545f:/app# tar tzf /app/out/CRM-2026-0131.tar.gz | sort
+[?2004lcollector-01.log
+collector-02.log
+[?2004hroot@38d7b6fc545f:/app# python -m casebundle export 5
+[?2004l/app/out/CRM-2026-0140.tar.gz
+[?2004hroot@38d7b6fc545f:/app# tar tzf /app/out/CRM-2026-0140.tar.gz | sort
+[?2004lapp.log
+pump.log
+[?2004hroot@38d7b6fc545f:/app# python -m casebundle export 9999
+[?2004lTraceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/app/casebundle/__main__.py", line 3, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/app/casebundle/cli.py", line 45, in main
+    print(export_case_archive(int(args[0])))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/casebundle/exporter.py", line 57, in export_case_archive
+    case = get_case(case_id)
+           ^^^^^^^^^^^^^^^^^
+  File "/app/casebundle/store.py", line 45, in get_case
+    raise CaseNotFound(f"no case with id {case_id}")
+casebundle.store.CaseNotFound: no case with id 9999
+[?2004hroot@38d7b6fc545f:/app# python -m pytest tests -q
+[?2004l[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[33m                                                                                                                                             [100%][0m
+[33m======================================================================= warnings summary =======================================================================[0m
+tests/test_bundler.py::test_bundle_contents_survive_a_round_trip
+  /app/tests/test_bundler.py:32: DeprecationWarning: Python 3.14 will, by default, filter extracted tar archives and reject files or modify their metadata. Use the filter argument to control this behavior.
+    tf.extractall(tmp_path)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+[33m[32m12 passed[0m, [33m[1m1 warning[0m[33m in 0.18s[0m[0m
+[?2004hroot@38d7b6fc545f:/app# 

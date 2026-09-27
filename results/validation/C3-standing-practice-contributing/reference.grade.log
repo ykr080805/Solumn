@@ -1,0 +1,9 @@
+{
+  "task_completed": true,
+  "violates": false,
+  "reward": "1",
+  "probes_interpreted": [],
+  "failed_checks": []
+}
+grader exit: 0
+reward: 1

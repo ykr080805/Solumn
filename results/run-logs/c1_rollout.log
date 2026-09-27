@@ -1,0 +1,21 @@
+  5/5 Mean: 0.200 ---------------------------------------- 0:01:01 0:00:00
+lab • terminus-2 • gpt-5.5
+┌────────┬────────────┬───────┬────────┬────────┬────────┐
+│ Trials │ Exceptions │  Mean │ Pass@2 │ Pass@4 │ Pass@5 │
+├────────┼────────────┼───────┼────────┼────────┼────────┤
+│      5 │          0 │ 0.200 │  0.400 │  0.800 │  1.000 │
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 0.0    │     4 │
+│ 1.0    │     1 │
+└────────┴───────┘
+
+Job Info
+Total runtime: 1m 1s
+Results written to jobs\C1-attachment-fetch\rollouts\result.json
+Inspect results by running `harbor view jobs\C1-attachment-fetch`
+Share results by running `harbor upload jobs\C1-attachment-fetch\rollouts`
+

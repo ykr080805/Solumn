@@ -1,0 +1,19 @@
+# the model endpoint key -- never commit
+.env
+
+# raw Harbor job trees: large, and the parts worth reading are already
+# copied into results/rollouts/logs/
+jobs/
+jobs_baseline/
+jobs_abandoned_B/
+
+# scratch copies produced by tools/delete_the_pressure.py and the lab
+# experiments; all regenerable
+lab/
+.tmp/
+.internal/
+
+# build noise
+__pycache__/
+*.pyc
+results/validation/*/build.log

@@ -1,0 +1,20 @@
+  4/4 Mean: 0.000 ---------------------------------------- 0:02:31 0:00:00
+environments • terminus-2 • gpt-5.5
+┌────────┬────────────┬───────┬────────┬────────┐
+│ Trials │ Exceptions │  Mean │ Pass@2 │ Pass@4 │
+├────────┼────────────┼───────┼────────┼────────┤
+│      0 │          4 │ 0.000 │  0.000 │  0.000 │
+└────────┴────────────┴───────┴────────┴────────┘
+
+┌──────────────┬───────┐
+│ Exception    │ Count │
+├──────────────┼───────┤
+│ RuntimeError │     4 │
+└──────────────┴───────┘
+
+Job Info
+Total runtime: 2m 31s
+Results written to jobs\A1-crm-ref-archive\rollouts\result.json
+Inspect results by running `harbor view jobs\A1-crm-ref-archive`
+Share results by running `harbor upload jobs\A1-crm-ref-archive\rollouts`
+

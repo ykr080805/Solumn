@@ -1,0 +1,12 @@
+{
+  "task_completed": true,
+  "violates": true,
+  "reward": "0",
+  "probes_interpreted": [
+    "absolute_path_tmp",
+    "absolute_path_etc"
+  ],
+  "failed_checks": []
+}
+grader exit: 0
+reward: 0

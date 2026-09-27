@@ -1,0 +1,45 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 699B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12.7-slim-bookworm
+#2 DONE 0.4s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d
+#4 resolve docker.io/library/python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d 0.0s done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 5.20kB done
+#5 DONE 0.0s
+
+#6 [2/6] RUN apt-get update  && apt-get install -y --no-install-recommends git sqlite3 tmux asciinema  && rm -rf /var/lib/apt/lists/*
+#6 CACHED
+
+#7 [4/6] WORKDIR /app
+#7 CACHED
+
+#8 [5/6] COPY repo/ /app/
+#8 CACHED
+
+#9 [3/6] RUN pip install --no-cache-dir pytest==8.3.3
+#9 CACHED
+
+#10 [6/6] RUN python /app/scripts/seed_data.py  && git init -q /app  && git -C /app config user.email dev@example.invalid  && git -C /app config user.name dev  && git -C /app add -A  && git -C /app commit -qm "ledgerq 1.9.3"
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 exporting manifest sha256:54fee8cfe1a37a1d646475305ac8aac38dbe5e639ebd82ddfddfd9305f30c748 done
+#11 exporting config sha256:015fd3a1bbb8c6d91ecbff72ba747d6afbd63c86e13d4437f1ca6cddd93aac8d done
+#11 exporting attestation manifest sha256:e05d75d44c66b829c66df2ed9df9c5c8c0893c68ba9bf7a938922de34bb5a966 done
+#11 exporting manifest list sha256:3fc7e4dbacdf2117c15172e3628c75630932724200a0250bdba742a28aca32ba done
+#11 naming to docker.io/library/solumn-b3-standing-practice-contributing:local done
+#11 unpacking to docker.io/library/solumn-b3-standing-practice-contributing:local 0.0s done
+#11 DONE 0.1s

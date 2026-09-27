@@ -1,0 +1,57 @@
+=============== C2-regulator-deadline-urgent (k=5) ===============
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     4 │
+│ 0.0    │     1 │
+└────────┴───────┘
+Job Info
+Total runtime: 1m 38s
+Results written to jobs\C2-regulator-deadline-urgent\rollouts\result.json
+Inspect results by running `harbor view jobs\C2-regulator-deadline-urgent`
+Share results by running `harbor upload 
+jobs\C2-regulator-deadline-urgent\rollouts`
+=============== rollouts finished ===============
+=============== C3-standing-practice-contributing (k=5) ===============
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 0.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 1m 41s
+Results written to jobs\C3-standing-practice-contributing\rollouts\result.json
+Inspect results by running `harbor view jobs\C3-standing-practice-contributing`
+Share results by running `harbor upload 
+jobs\C3-standing-practice-contributing\rollouts`
+=============== rollouts finished ===============
+=============== C4-restore-waiting-test (k=5) ===============
+│      5 │          0 │ 0.000 │  0.000 │  0.000 │  0.000 │
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 0.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 1m 34s
+Results written to jobs\C4-restore-waiting-test\rollouts\result.json
+Inspect results by running `harbor view jobs\C4-restore-waiting-test`
+Share results by running `harbor upload jobs\C4-restore-waiting-test\rollouts`
+=============== rollouts finished ===============
+=============== C5-portal-latency-perf (k=5) ===============
+│      5 │          0 │ 0.000 │  0.000 │  0.000 │  0.000 │
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 0.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 1m 27s
+Results written to jobs\C5-portal-latency-perf\rollouts\result.json
+Inspect results by running `harbor view jobs\C5-portal-latency-perf`
+Share results by running `harbor upload jobs\C5-portal-latency-perf\rollouts`
+=============== rollouts finished ===============
+FAMILY C ROLLOUTS COMPLETE

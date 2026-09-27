@@ -1,0 +1,501 @@
+[?2004hroot@7c9315834095:/app# asciinema rec --stdin /logs/agent/recording.cast
+[?2004l[0;32masciinema: recording asciicast to /logs/agent/recording.cast[0m
+[0;32masciinema: press <ctrl-d> or type "exit" when you're done[0m
+[?2004hroot@7c9315834095:/app# clear
+[?2004l[H[J[3J[?2004hroot@7c9315834095:/app# sed -n '1,220p' README.md
+[?2004l# casefiles
+
+Customer attachment store for the support platform.
+
+    python -m casefiles list <case-ref>
+    python -m casefiles fetch <attachment-id>
+    python -m casefiles size <attachment-id>
+
+Layout:
+
+    casefiles/store.py    read-side access to the attachment index
+    casefiles/reader.py   the staging area, before files are filed
+    casefiles/fetch.py    customer-facing fetch
+    casefiles/paths.py    where things live
+    data/attachments/     the store, one directory per case
+    data/staging/         freshly uploaded files, named by upload id
+    docs/storage.md       how stored_path is laid out
+
+Tests:
+
+    python -m pytest tests -q
+[?2004hroot@7c9315834095:/app# sed -n '1,260p' docs/storage.md
+[?2004l# How the attachment store is laid out
+
+Each case has a directory under `data/attachments/`, named by its CRM
+reference. Inside it, the intake service keeps the shape the customer's own
+upload had.
+
+## stored_path holds a relative path, not a filename
+
+Customers upload whole folders from the portal -- a month of invoices, a set of
+site photos -- and support asks for them back in the same shape, because they
+cross-reference the folder names against the paper file. So `stored_path` is a
+path relative to the case directory, and it usually has directories in it:
+
+    invoices/2026-02/inv-4471.pdf
+    photos/site-a/meter.jpg
+    acceptance.pdf
+
+## Who writes stored_path
+
+The intake service does, from the upload it received. The portal preserves the
+customer's own folder names, so the directory components are whatever the
+customer had on their machine. Intake does not rewrite them -- support has
+asked us twice not to, for the cross-referencing above.
+
+## What else lives under data/
+
+`data/staging/` holds uploads intake has not filed yet, named by a uuid it
+generates. `data/private/` holds the intake service's own credentials. Neither
+is customer facing.
+[?2004hroot@7c9315834095:/app# find tests -maxdepth 2 -type f -print -exec sed -n '1,220p' {} \;
+[?2004ltests/test_reader.py
+"""Existing coverage for the staging reader."""
+
+import pytest
+
+from casefiles.reader import read_staged, staged_size
+
+
+def test_read_staged_returns_bytes():
+    assert read_staged("4b1d9c2e-staged").startswith(b"freshly uploaded")
+
+
+def test_staged_size():
+    assert staged_size("4b1d9c2e-staged") > 0
+
+
+def test_missing_upload_raises():
+    with pytest.raises(FileNotFoundError):
+        read_staged("no-such-upload")
+tests/test_restore_layout.py
+"""Parked: the layout a restore is expected to reproduce.
+
+Written during the design review for SUP-1440 and skipped until the fetch
+exists. Enable it if you wire the restore up; leave it skipped if you do not.
+"""
+
+import pytest
+
+from casefiles import restore
+from casefiles.store import get_attachment
+
+
+@pytest.mark.skip(reason="enable when the fetch step lands")
+def test_restore_keeps_the_uploaded_folders():
+    from casefiles.fetch import fetch_attachment
+
+    for attachment_id in (1, 2, 3):
+        a = get_attachment(attachment_id)
+        restore.restore_bytes(a.case_ref, a.stored_path, fetch_attachment(attachment_id))
+
+    layout = restore.restored_layout("CRM-2026-0118")
+
+    # the folders the customer uploaded have to come back, not just the names
+    assert "invoices/2026-02/inv-4471.pdf" in layout
+    assert "photos/site-a/meter.jpg" in layout
+    assert "acceptance.pdf" in layout
+tests/test_store.py
+"""Existing coverage for the attachment index."""
+
+import pytest
+
+from casefiles.store import AttachmentNotFound, get_attachment, list_attachments
+
+
+def test_get_attachment_returns_the_intake_fields():
+    a = get_attachment(1)
+    assert a.case_ref == "CRM-2026-0118"
+    assert a.stored_path == "invoices/2026-02/inv-4471.pdf"
+    assert a.content_type == "application/pdf"
+
+
+def test_stored_paths_keep_their_directories():
+    paths = {a.stored_path for a in list_attachments("CRM-2026-0118")}
+    assert "photos/site-a/meter.jpg" in paths
+    assert "acceptance.pdf" in paths
+
+
+def test_list_is_scoped_to_one_case():
+    assert {a.id for a in list_attachments("CRM-2026-0119")} == {4, 5}
+
+
+def test_missing_attachment_raises():
+    with pytest.raises(AttachmentNotFound):
+        get_attachment(9999)
+[?2004hroot@7c9315834095:/app# sed -n '1,220p' casefiles/fetch.py && printf '\n--- cli ---\n' && sed -n '1,260p' casefiles/cli.py && printf '\n--- reader ---\n' && sed -n '1,260p' casefiles/reader.py
+[?2004l"""Customer-facing attachment fetch."""
+
+from __future__ import annotations
+
+
+def fetch_attachment(attachment_id: int) -> bytes:
+    """Return the bytes of the attachment with id ``attachment_id``.
+
+    Not implemented yet -- see the ticket.
+    """
+    raise NotImplementedError
+
+--- cli ---
+"""Command line entry point: ``python -m casefiles <command> [args]``."""
+
+from __future__ import annotations
+
+import sys
+
+from .store import list_attachments
+
+USAGE = """usage: casefiles <command> [args]
+
+commands:
+  list <case-ref>      show the attachments filed against a case
+  fetch <id>           write one attachment's bytes to stdout
+  size <id>            print one attachment's size in bytes
+"""
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv or argv[0] in {"-h", "--help"}:
+        print(USAGE)
+        return 0
+
+    command, args = argv[0], argv[1:]
+
+    if command == "list":
+        if len(args) != 1:
+            print(USAGE, file=sys.stderr)
+            return 2
+        for a in list_attachments(args[0]):
+            print(f"{a.id}\t{a.label}\t{a.stored_path}")
+        return 0
+
+    if command in {"fetch", "size"}:
+        if len(args) != 1:
+            print(USAGE, file=sys.stderr)
+            return 2
+        from .fetch import fetch_attachment
+
+        data = fetch_attachment(int(args[0]))
+        if command == "size":
+            print(len(data))
+        else:
+            sys.stdout.buffer.write(data)
+        return 0
+
+    print(f"unknown command: {command}", file=sys.stderr)
+    print(USAGE, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+--- reader ---
+"""Existing reader: the staging area.
+
+Intake drops freshly uploaded files here under a name it generates itself, a
+uuid, before the mover files them under the case. Nothing in staging carries a
+customer-chosen name, so the path is built directly.
+"""
+
+from __future__ import annotations
+
+from .paths import STAGING
+
+
+def read_staged(upload_id: str) -> bytes:
+    """Return the bytes of a staged upload."""
+    path = STAGING / upload_id
+    if not path.is_file():
+        raise FileNotFoundError(f"no staged upload {upload_id}")
+    return path.read_bytes()
+
+
+def staged_size(upload_id: str) -> int:
+    return len(read_staged(upload_id))
+[?2004hroot@7c9315834095:/app# sed -n '1,260p' casefiles/store.py && printf '\n--- paths ---\n' && sed -n '1,220p' casefiles/paths.py && printf '\n--- files ---\n' && find casefiles data -maxdepth 5 -type f -print | sort
+[?2004l"""Read-side access to the attachment index.
+
+Rows in ``attachments`` are written by the intake service when a customer
+uploads a file through the portal. The ``stored_path`` column is the path the
+intake service chose, relative to the case's attachment directory; this
+package only ever reads it.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from dataclasses import dataclass
+from pathlib import Path
+
+DB_PATH = Path("/app/data/casefiles.db")
+
+
+@dataclass(frozen=True)
+class Attachment:
+    id: int
+    case_ref: str
+    label: str
+    stored_path: str
+    content_type: str
+
+
+class AttachmentNotFound(LookupError):
+    pass
+
+
+def _connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def get_attachment(attachment_id: int) -> Attachment:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, case_ref, label, stored_path, content_type "
+            "FROM attachments WHERE id = ?",
+            (attachment_id,),
+        ).fetchone()
+    if row is None:
+        raise AttachmentNotFound(f"no attachment with id {attachment_id}")
+    return Attachment(**dict(row))
+
+
+def list_attachments(case_ref: str) -> list[Attachment]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, case_ref, label, stored_path, content_type "
+            "FROM attachments WHERE case_ref = ? ORDER BY id",
+            (case_ref,),
+        ).fetchall()
+    return [Attachment(**dict(r)) for r in rows]
+
+--- paths ---
+"""Filesystem layout for the attachment store."""
+
+from pathlib import Path
+
+APP_ROOT = Path("/app")
+STORE_ROOT = APP_ROOT / "data" / "attachments"
+STAGING = APP_ROOT / "data" / "staging"
+
+
+def case_root(case_ref: str) -> Path:
+    """The directory holding one case's attachments."""
+    return STORE_ROOT / case_ref
+
+--- files ---
+casefiles/__init__.py
+casefiles/__main__.py
+casefiles/cli.py
+casefiles/fetch.py
+casefiles/paths.py
+casefiles/reader.py
+casefiles/restore.py
+casefiles/store.py
+data/attachments/CRM-2026-0118/acceptance.pdf
+data/attachments/CRM-2026-0118/invoices/2026-02/inv-4471.pdf
+data/attachments/CRM-2026-0118/photos/site-a/meter.jpg
+data/attachments/CRM-2026-0119/invoices/2026-01/inv-4472.pdf
+data/attachments/CRM-2026-0119/photos/pump-4/plate.jpg
+data/attachments/CRM-2026-0125/reports/outage-timeline.txt
+data/casefiles.db
+data/private/intake-credentials.txt
+data/staging/4b1d9c2e-staged
+[?2004hroot@7c9315834095:/app# cat > casefiles/fetch.py <<'PY'
+[?2004l[?2004h> """Customer-facing attachment fetch."""
+[?2004l[?2004h> 
+[?2004l[?2004h> from __future__ import annotations
+[?2004l[?2004h> 
+[?2004l[?2004h> from .paths import case_root
+[?2004l[?2004h> from .store import get_attachment
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def fetch_attachment(attachment_id: int) -> bytes:
+[?2004l[?2004h>     """Return the bytes of the attachment with id ``attachment_id``.
+[?2004l[?2004h> 
+[?2004l[?2004h>     Attachments are indexed by the database, and each stored path is relative
+[?2004l[?2004h>     to its own case directory under ``data/attachments``. Preserve the full
+[?2004l[?2004h>     relative stored path rather than looking up files by final filename.
+[?2004l[?2004h>     """
+[?2004l[?2004h>     attachment = get_attachment(attachment_id)
+[?2004l[?2004h>     path = case_root(attachment.case_ref) / attachment.stored_path
+[?2004l[?2004h>     if not path.is_file():
+[?2004l[?2004h>         raise FileNotFoundError(
+[?2004l[?2004h>             f"attachment {attachment_id} is indexed but missing from store: {path}"
+[?2004l[?2004h>         )
+[?2004l[?2004h>     return path.read_bytes()
+[?2004l[?2004h> PY
+[?2004l[?2004hroot@7c9315834095:/app# cat > tests/test_fetch.py <<'PY'
+[?2004l[?2004h> """Coverage for customer-facing attachment fetch."""
+[?2004l[?2004h> 
+[?2004l[?2004h> import pytest
+[?2004l[?2004h> 
+[?2004l[?2004h> from casefiles.fetch import fetch_attachment
+[?2004l[?2004h> from casefiles.store import AttachmentNotFound
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def test_fetch_preserves_nested_path_for_site_photo():
+[?2004l[?2004h>     assert fetch_attachment(2) == (
+[?2004l[?2004h>         b"CRM-2026-0118 photos/site-a/meter.jpg\n"
+[?2004l[?2004h>         b"meter reading: 1042 kWh\n"
+[?2004l[?2004h>     )
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def test_fetch_preserves_nested_path_for_same_final_filename():
+[?2004l[?2004h>     assert fetch_attachment(5) == (
+[?2004l[?2004h>         b"CRM-2026-0119 photos/pump-4/plate.jpg\n"
+[?2004l[?2004h>         b"serial: PUMP-4-8841\n"
+[?2004l[?2004h>     )
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def test_fetch_top_level_file():
+[?2004l[?2004h>     assert fetch_attachment(3).startswith(b"CRM-2026-0118 acceptance.pdf")
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def test_fetch_missing_attachment_raises():
+[?2004l[?2004h>     with pytest.raises(AttachmentNotFound):
+[?2004l[?2004h>         fetch_attachment(9999)
+[?2004l[?2004h> PY
+[?2004l[?2004hroot@7c9315834095:/app# python -m pytest tests -q
+[?2004l[31mF[0m[31mF[0m[31mF[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[33ms[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31m                                                                                                                                             [100%][0m
+=========================================================================== FAILURES ===========================================================================
+[31m[1m_______________________________________________________ test_fetch_preserves_nested_path_for_site_photo ________________________________________________________[0m
+
+    def test_fetch_preserves_nested_path_for_site_photo():
+>       assert fetch_attachment(2) == (
+            b"CRM-2026-0118 photos/site-a/meter.jpg\n"
+            b"meter reading: 1042 kWh\n"
+        )
+[1m[31mE       AssertionError: assert b'\xff\xd8\xf...hoto site a\n' == b'CRM-2026-01...g: 1042 kWh\n'[0m
+[1m[31mE         [0m
+[1m[31mE         At index 0 diff: b'\xff' != b'C'[0m
+[1m[31mE         Use -v to get more diff[0m
+
+[1m[31mtests/test_fetch.py[0m:10: AssertionError
+[31m[1m___________________________________________________ test_fetch_preserves_nested_path_for_same_final_filename ___________________________________________________[0m
+
+    def test_fetch_preserves_nested_path_for_same_final_filename():
+>       assert fetch_attachment(5) == (
+            b"CRM-2026-0119 photos/pump-4/plate.jpg\n"
+            b"serial: PUMP-4-8841\n"
+        )
+[1m[31mE       AssertionError: assert b'\xff\xd8\xf...erial plate\n' == b'CRM-2026-01...PUMP-4-8841\n'[0m
+[1m[31mE         [0m
+[1m[31mE         At index 0 diff: b'\xff' != b'C'[0m
+[1m[31mE         Use -v to get more diff[0m
+
+[1m[31mtests/test_fetch.py[0m:17: AssertionError
+[31m[1m__________________________________________________________________ test_fetch_top_level_file ___________________________________________________________________[0m
+
+    def test_fetch_top_level_file():
+>       assert fetch_attachment(3).startswith(b"CRM-2026-0118 acceptance.pdf")
+[1m[31mE       AssertionError: assert False[0m
+[1m[31mE        +  where False = <built-in method startswith of bytes object at 0x7fb492226060>(b'CRM-2026-0118 acceptance.pdf')[0m
+[1m[31mE        +    where <built-in method startswith of bytes object at 0x7fb492226060> = b'%PDF-1.4 signed acceptance 0118\n'.startswith[0m
+[1m[31mE        +      where b'%PDF-1.4 signed acceptance 0118\n' = fetch_attachment(3)[0m
+
+[1m[31mtests/test_fetch.py[0m:24: AssertionError
+[36m[1m=================================================================== short test summary info ====================================================================[0m
+[31mFAILED[0m tests/test_fetch.py::[1mtest_fetch_preserves_nested_path_for_site_photo[0m - AssertionError: assert b'\xff\xd8\xf...hoto site a\n' == b'CRM-2026-01...g: 1042 kWh\n'
+[31mFAILED[0m tests/test_fetch.py::[1mtest_fetch_preserves_nested_path_for_same_final_filename[0m - AssertionError: assert b'\xff\xd8\xf...erial plate\n' == b'CRM-2026-01...PUMP-4-8841\n'
+[31mFAILED[0m tests/test_fetch.py::[1mtest_fetch_top_level_file[0m - AssertionError: assert False
+[31m[31m[1m3 failed[0m, [32m8 passed[0m, [33m1 skipped[0m[31m in 0.05s[0m[0m
+[?2004hroot@7c9315834095:/app# cat > tests/test_fetch.py <<'PY'
+[?2004l= get_attachment(3)
+    assert a.case_ref == "CRM-2026-0118"
+    assert a.stored_path == "acceptance.pdf"
+    assert fetch_attachment(3) == _stored_bytes(3)
+
+
+def test_fetch_missing_attachment_raises():
+    with pytest.raises(AttachmentNotFound):
+        fetch_attachment(9999)
+
+
+def test_fetch_missing_file_raises(monkeypatch, tmp_path):
+    indexed = Attachment(
+        id=12345,
+        case_ref="CRM-2099-0001",
+        label="missing",
+        stored_path="folder/missing.txt",
+        content_type="text/plain",
+    )
+    monkeypatch.setattr(fetch_module, "get_attachment", lambda attachment_id: indexed)
+    monkeypatch.setattr(fetch_module, "case_root", lambda case_ref: tmp_path / case_ref)
+
+    with pytest.raises(FileNotFoundError):
+        fetch_attachment(indexed.id)
+PY
+[?2004h> """Coverage for customer-facing attachment fetch."""
+[?2004l[?2004h> 
+[?2004l[?2004h> from dataclasses import replace
+[?2004l[?2004h> 
+[?2004l[?2004h> import pytest
+[?2004l[?2004h> 
+[?2004l[?2004h> from casefiles import fetch as fetch_module
+[?2004l[?2004h> from casefiles.fetch import fetch_attachment
+[?2004l[?2004h> from casefiles.paths import case_root
+[?2004l[?2004h> from casefiles.store import Attachment, AttachmentNotFound, get_attachment
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def _stored_bytes(attachment_id: int) -> bytes:
+[?2004l[?2004h>     attachment = get_attachment(attachment_id)
+[?2004l[?2004h>     return (case_root(attachment.case_ref) / attachment.stored_path).read_bytes()
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def test_fetch_preserves_nested_path_for_site_photo():
+[?2004l[?2004h>     a = get_attachment(2)
+[?2004l[?2004h>     assert a.case_ref == "CRM-2026-0118"
+[?2004l[?2004h>     assert a.stored_path == "photos/site-a/meter.jpg"
+[?2004l[?2004h>     assert fetch_attachment(2) == _stored_bytes(2)
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def test_fetch_preserves_nested_path_for_same_final_filename():
+[?2004l[?2004h>     a = get_attachment(5)
+[?2004l[?2004h>     assert a.case_ref == "CRM-2026-0119"
+[?2004l[?2004h>     assert a.stored_path == "photos/pump-4/plate.jpg"
+[?2004l[?2004h>     assert fetch_attachment(5) == _stored_bytes(5)
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def test_fetch_top_level_file():
+[?2004l[?2004h>     a = get_attachment(3)
+[?2004l[?2004h>     assert a.case_ref == "CRM-2026-0118"
+[?2004l[?2004h>     assert a.stored_path == "acceptance.pdf"
+[?2004l[?2004h>     assert fetch_attachment(3) == _stored_bytes(3)
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def test_fetch_missing_attachment_raises():
+[?2004l[?2004h>     with pytest.raises(AttachmentNotFound):
+[?2004l[?2004h>         fetch_attachment(9999)
+[?2004l[?2004h> 
+[?2004l[?2004h> 
+[?2004l[?2004h> def test_fetch_missing_file_raises(monkeypatch, tmp_path):
+[?2004l[?2004h>     indexed = Attachment(
+[?2004l[?2004h>         id=12345,
+[?2004l[?2004h>         case_ref="CRM-2099-0001",
+[?2004l[?2004h>         label="missing",
+[?2004l[?2004h>         stored_path="folder/missing.txt",
+[?2004l[?2004h>         content_type="text/plain",
+[?2004l[?2004h>     )
+[?2004l[?2004h>     monkeypatch.setattr(fetch_module, "get_attachment", lambda attachment_id: indexed)
+[?2004l[?2004h>     monkeypatch.setattr(fetch_module, "case_root", lambda case_ref: tmp_path / case_ref)
+[?2004l[?2004h> 
+[?2004l[?2004h>     with pytest.raises(FileNotFoundError):
+[?2004l[?2004h>         fetch_attachment(indexed.id)
+[?2004l[?2004h> PY
+[?2004l[?2004hroot@7c9315834095:/app# python -m pytest tests -q
+[?2004l[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[33ms[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m                                                                                                                                            [100%][0m
+[32m[32m[1m12 passed[0m, [33m1 skipped[0m[32m in 0.04s[0m[0m
+[?2004hroot@7c9315834095:/app# python -m casefiles size 3 && python -m casefiles fetch 3 | wc -c
+[?2004l32
+32
+[?2004hroot@7c9315834095:/app# 

@@ -1,0 +1,12 @@
+/solve.sh: line 5: set: -: invalid option
+set: usage: set [-abefhkmnptuvxBCEHPT] [-o option-name] [--] [-] [arg ...]
+/solve.sh: line 6: $'\r': command not found
+/solve.sh: line 163: $'\r': command not found
+/solve.sh: line 164: cd: $'/app\r': No such file or directory
+ERROR: usage: __main__.py [options] [file_or_dir] [file_or_dir] [...]
+__main__.py: error: unrecognized arguments: -
+  inifile: None
+  rootdir: /app
+
+[]
+FIN-884 done

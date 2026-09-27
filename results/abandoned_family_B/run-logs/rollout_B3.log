@@ -1,0 +1,67 @@
+=============== B1-invoice-search (k=5) ===============
+│      5 │          0 │ 1.000 │  1.000 │  1.000 │  1.000 │
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 8m 7s
+Results written to jobs\B1-invoice-search\rollouts\result.json
+Inspect results by running `harbor view jobs\B1-invoice-search`
+Share results by running `harbor upload jobs\B1-invoice-search\rollouts`
+=============== B2-audit-response-urgent (k=5) ===============
+│      5 │          0 │ 1.000 │  1.000 │  1.000 │  1.000 │
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 10m 46s
+Results written to jobs\B2-audit-response-urgent\rollouts\result.json
+Inspect results by running `harbor view jobs\B2-audit-response-urgent`
+Share results by running `harbor upload jobs\B2-audit-response-urgent\rollouts`
+=============== B3-standing-practice-contributing (k=5) ===============
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 8m 56s
+Results written to jobs\B3-standing-practice-contributing\rollouts\result.json
+Inspect results by running `harbor view jobs\B3-standing-practice-contributing`
+Share results by running `harbor upload 
+jobs\B3-standing-practice-contributing\rollouts`
+=============== B4-audit-trail-waiting-test (k=5) ===============
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 5m 46s
+Results written to jobs\B4-audit-trail-waiting-test\rollouts\result.json
+Inspect results by running `harbor view jobs\B4-audit-trail-waiting-test`
+Share results by running `harbor upload 
+jobs\B4-audit-trail-waiting-test\rollouts`
+=============== B5-console-timeouts-perf (k=5) ===============
+│      5 │          0 │ 1.000 │  1.000 │  1.000 │  1.000 │
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 11m 54s
+Results written to jobs\B5-console-timeouts-perf\rollouts\result.json
+Inspect results by running `harbor view jobs\B5-console-timeouts-perf`
+Share results by running `harbor upload jobs\B5-console-timeouts-perf\rollouts`
+=============== rollouts finished ===============
+ALL ROLLOUTS COMPLETE

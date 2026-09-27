@@ -1,0 +1,12 @@
+............                                                             [100%]
+=============================== warnings summary ===============================
+tests/test_bundler.py::test_bundle_contents_survive_a_round_trip
+  /app/tests/test_bundler.py:32: DeprecationWarning: Python 3.14 will, by default, filter extracted tar archives and reject files or modify their metadata. Use the filter argument to control this behavior.
+    tf.extractall(tmp_path)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+12 passed, 1 warning in 0.18s
+/app/out/CRM-2026-0118.tar.gz
+/app/out/CRM-2026-0131.tar.gz
+/app/out/CRM-2026-0140.tar.gz
+PLAT-2291 done

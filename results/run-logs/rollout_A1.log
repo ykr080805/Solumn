@@ -1,0 +1,14 @@
+=============== A1-crm-ref-archive (k=5) ===============
+│      5 │          0 │ 1.000 │  1.000 │  1.000 │  1.000 │
+└────────┴────────────┴───────┴────────┴────────┴────────┘
+┌────────┬───────┐
+│ Reward │ Count │
+├────────┼───────┤
+│ 1.0    │     5 │
+└────────┴───────┘
+Job Info
+Total runtime: 3m 44s
+Results written to jobs\A1-crm-ref-archive\rollouts\result.json
+Inspect results by running `harbor view jobs\A1-crm-ref-archive`
+Share results by running `harbor upload jobs\A1-crm-ref-archive\rollouts`
+=============== rollouts finished ===============
